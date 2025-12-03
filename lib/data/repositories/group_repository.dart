@@ -10,34 +10,63 @@ import 'package:family_tree/data/services/api_service.dart';
 class GroupRepository {
   final ApiService _api = ApiService();
 
+  // ===== CACHE =====
+  List<Post>? _cachedPosts;
+  DateTime? _lastPostsFetch;
+  
+  List<Message>? _cachedMessages;
+  DateTime? _lastMessagesFetch;
+  
+  List<Appointment>? _cachedEvents;
+  DateTime? _lastEventsFetch;
+  
+  final Duration _cacheValidity = const Duration(minutes: 5);
+
   // ===== POSTS =====
 
   /// Watch all posts (polling-based since REST doesn't support real-time)
   Stream<List<Post>> watchPosts(String familyTreeId) async* {
+    // Yield cached data immediately if available
+    if (_cachedPosts != null) yield _cachedPosts!;
+    
     while (true) {
       try {
-        final posts = await getPosts();
-        yield posts;
+        // Only fetch if cache is expired or empty
+        if (_shouldFetch(_lastPostsFetch)) {
+          final posts = await getPosts();
+          yield posts;
+        } else if (_cachedPosts != null) {
+          yield _cachedPosts!;
+        }
       } catch (e) {
         print('Error fetching posts: $e');
-        yield [];
+        if (_cachedPosts != null) yield _cachedPosts!;
       }
-      await Future.delayed(const Duration(seconds: 3));
+      await Future.delayed(const Duration(seconds: 5)); // Increased polling interval
     }
   }
 
   /// Get all posts
-  Future<List<Post>> getPosts() async {
+  Future<List<Post>> getPosts({bool forceRefresh = false}) async {
+    if (!forceRefresh && !_shouldFetch(_lastPostsFetch) && _cachedPosts != null) {
+      return _cachedPosts!;
+    }
+
     try {
       final response = await _api.get('/api/posts');
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Post.fromJson(json as Map<String, dynamic>)).toList();
+        final posts = data.map((json) => Post.fromJson(json as Map<String, dynamic>)).toList();
+        
+        // Update cache
+        _cachedPosts = posts;
+        _lastPostsFetch = DateTime.now();
+        return posts;
       }
-      return [];
+      return _cachedPosts ?? [];
     } catch (e) {
       print('Error getting posts: $e');
-      return [];
+      return _cachedPosts ?? [];
     }
   }
 
@@ -47,6 +76,8 @@ class GroupRepository {
       final response = await _api.post('/api/posts', body: post.toJson());
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        // Invalidate cache to force refresh
+        _lastPostsFetch = null; 
         return data['id'] ?? '';
       }
       print('Create post failed with status ${response.statusCode}: ${response.body}');
@@ -61,6 +92,8 @@ class GroupRepository {
   Future<void> deletePost(String postId) async {
     try {
       await _api.delete('/api/posts/$postId');
+      // Optimistic update
+      _cachedPosts?.removeWhere((p) => p.id == postId);
     } catch (e) {
       print('Error deleting post: $e');
       rethrow;
@@ -71,30 +104,44 @@ class GroupRepository {
 
   /// Watch all messages (polling-based)
   Stream<List<Message>> watchMessages(String familyTreeId) async* {
+    if (_cachedMessages != null) yield _cachedMessages!;
+    
     while (true) {
       try {
-        final messages = await getMessages();
-        yield messages;
+        if (_shouldFetch(_lastMessagesFetch)) {
+          final messages = await getMessages();
+          yield messages;
+        } else if (_cachedMessages != null) {
+          yield _cachedMessages!;
+        }
       } catch (e) {
         print('Error fetching messages: $e');
-        yield [];
+        if (_cachedMessages != null) yield _cachedMessages!;
       }
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 3));
     }
   }
 
   /// Get all messages
-  Future<List<Message>> getMessages() async {
+  Future<List<Message>> getMessages({bool forceRefresh = false}) async {
+    if (!forceRefresh && !_shouldFetch(_lastMessagesFetch) && _cachedMessages != null) {
+      return _cachedMessages!;
+    }
+
     try {
       final response = await _api.get('/api/messages');
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Message.fromJson(json as Map<String, dynamic>)).toList();
+        final messages = data.map((json) => Message.fromJson(json as Map<String, dynamic>)).toList();
+        
+        _cachedMessages = messages;
+        _lastMessagesFetch = DateTime.now();
+        return messages;
       }
-      return [];
+      return _cachedMessages ?? [];
     } catch (e) {
       print('Error getting messages: $e');
-      return [];
+      return _cachedMessages ?? [];
     }
   }
 
@@ -104,6 +151,7 @@ class GroupRepository {
       final response = await _api.post('/api/messages', body: message.toJson());
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        _lastMessagesFetch = null; // Force refresh
         return data['id'] ?? '';
       }
       print('Send message failed with status ${response.statusCode}: ${response.body}');
@@ -121,6 +169,7 @@ class GroupRepository {
         '/api/messages/${message.id}',
         body: message.toJson(),
       );
+      _lastMessagesFetch = null;
     } catch (e) {
       print('Error updating message: $e');
       rethrow;
@@ -131,6 +180,7 @@ class GroupRepository {
   Future<void> deleteMessage(String messageId) async {
     try {
       await _api.delete('/api/messages/$messageId');
+      _cachedMessages?.removeWhere((m) => m.id == messageId);
     } catch (e) {
       print('Error deleting message: $e');
       rethrow;
@@ -141,30 +191,44 @@ class GroupRepository {
 
   /// Watch all events (polling-based)
   Stream<List<Appointment>> watchAppointments(String familyTreeId) async* {
+    if (_cachedEvents != null) yield _cachedEvents!;
+    
     while (true) {
       try {
-        final events = await getEvents();
-        yield events;
+        if (_shouldFetch(_lastEventsFetch)) {
+          final events = await getEvents();
+          yield events;
+        } else if (_cachedEvents != null) {
+          yield _cachedEvents!;
+        }
       } catch (e) {
         print('Error fetching events: $e');
-        yield [];
+        if (_cachedEvents != null) yield _cachedEvents!;
       }
-      await Future.delayed(const Duration(seconds: 3));
+      await Future.delayed(const Duration(seconds: 5));
     }
   }
 
   /// Get all events
-  Future<List<Appointment>> getEvents() async {
+  Future<List<Appointment>> getEvents({bool forceRefresh = false}) async {
+    if (!forceRefresh && !_shouldFetch(_lastEventsFetch) && _cachedEvents != null) {
+      return _cachedEvents!;
+    }
+
     try {
       final response = await _api.get('/api/events');
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Appointment.fromJson(json as Map<String, dynamic>)).toList();
+        final events = data.map((json) => Appointment.fromJson(json as Map<String, dynamic>)).toList();
+        
+        _cachedEvents = events;
+        _lastEventsFetch = DateTime.now();
+        return events;
       }
-      return [];
+      return _cachedEvents ?? [];
     } catch (e) {
       print('Error getting events: $e');
-      return [];
+      return _cachedEvents ?? [];
     }
   }
 
@@ -174,6 +238,7 @@ class GroupRepository {
       final response = await _api.post('/api/events', body: appointment.toJson());
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        _lastEventsFetch = null;
         return data['id'] ?? '';
       }
       print('Create event failed with status ${response.statusCode}: ${response.body}');
@@ -188,6 +253,7 @@ class GroupRepository {
   Future<void> deleteAppointment(String appointmentId) async {
     try {
       await _api.delete('/api/events/$appointmentId');
+      _cachedEvents?.removeWhere((e) => e.id == appointmentId);
     } catch (e) {
       print('Error deleting event: $e');
       rethrow;
@@ -198,6 +264,7 @@ class GroupRepository {
   Future<void> toggleRSVP(String eventId, String userId) async {
     try {
       await _api.post('/api/events/$eventId/rsvp');
+      _lastEventsFetch = null;
     } catch (e) {
       print('Error toggling RSVP: $e');
       rethrow;
@@ -276,5 +343,11 @@ class GroupRepository {
       print('Error toggling reaction: $e');
       rethrow;
     }
+  }
+
+  // ===== HELPER =====
+  bool _shouldFetch(DateTime? lastFetch) {
+    if (lastFetch == null) return true;
+    return DateTime.now().difference(lastFetch) > _cacheValidity;
   }
 }

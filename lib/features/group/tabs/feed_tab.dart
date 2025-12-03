@@ -79,6 +79,8 @@ class _FeedTabState extends ConsumerState<FeedTab> {
 
         return RefreshIndicator(
           onRefresh: () async {
+            // Force refresh by invalidating cache in repository
+            await _repository.getPosts(forceRefresh: true);
             ref.invalidate(postsProvider(familyTreeId));
           },
           color: widget.isDark ? AppTheme.primaryLight : ElegantColors.terracotta,
