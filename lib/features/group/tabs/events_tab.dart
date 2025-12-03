@@ -7,6 +7,7 @@ import 'package:family_tree/data/repositories/group_repository.dart';
 import 'package:family_tree/features/auth/providers/auth_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Provider for appointments stream
 final appointmentsProvider = StreamProvider.family<List<Appointment>, String>((ref, familyTreeId) {
@@ -312,13 +313,33 @@ class _EventsTabState extends ConsumerState<EventsTab> {
               children: [
                 const Icon(Icons.location_on, size: 16, color: AppTheme.accentCyan),
                 const SizedBox(width: AppTheme.spaceXs),
-                Text(
-                  appointment.location!,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppTheme.textSecondary,
+                Expanded(
+                  child: Text(
+                    appointment.location!,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
                 ),
+                // Open in Maps button
+                if (appointment.mapLink != null && appointment.mapLink!.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.map, color: AppTheme.primaryLight),
+                    tooltip: 'Open in Maps',
+                    onPressed: () async {
+                      final uri = Uri.parse(appointment.mapLink!);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      } else {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Could not open map link')),
+                          );
+                        }
+                      }
+                    },
+                  ),
               ],
             ),
           ],
