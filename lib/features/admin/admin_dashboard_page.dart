@@ -13,6 +13,13 @@ import 'package:family_tree/data/repositories/group_repository.dart';
 import 'package:family_tree/data/repositories/admin_repository.dart';
 import 'package:family_tree/features/auth/providers/auth_provider.dart';
 import 'package:family_tree/providers/admin_provider.dart';
+import 'package:family_tree/features/edit/add_person_dialog.dart';
+import 'package:family_tree/features/maps/location_picker_dialog.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:family_tree/data/services/storage_service.dart';
+import 'dart:typed_data';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Admin Dashboard with full management capabilities
 class AdminDashboardPage extends ConsumerStatefulWidget {
@@ -940,6 +947,13 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
               ),
               IconButton(
                 icon: Icon(
+                  Icons.edit_outlined,
+                  color: isDark ? Colors.white60 : Colors.grey,
+                ),
+                onPressed: () => _showEditPostDialog(post),
+              ),
+              IconButton(
+                icon: Icon(
                   Icons.delete_outline_rounded,
                   color: Colors.red.shade400,
                 ),
@@ -1092,8 +1106,31 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
                     color: AppTheme.accentTeal,
                   ),
                 ),
-              ],
+               ],
             ),
+          ),
+          // Maps button (if mapLink exists)
+          if (event.mapLink != null && event.mapLink!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.map, color: AppTheme.accentTeal),
+              tooltip: 'Open in Maps',
+              onPressed: () async {
+                final uri = Uri.parse(event.mapLink!);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Could not open map link')),
+                    );
+                  }
+                }
+              },
+            ),
+
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, color: AppTheme.accentTeal),
+            onPressed: () => _showEditEventDialog(event),
           ),
           IconButton(
             icon: Icon(
@@ -1243,89 +1280,28 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
   // ===== DIALOG METHODS =====
   
   void _showAddPersonDialog() {
-    final firstNameController = TextEditingController();
-    final lastNameController = TextEditingController();
-    String gender = 'male';
-    
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text('Add Family Member', style: GoogleFonts.playfairDisplay()),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: firstNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'First Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: lastNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Last Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: gender,
-                  decoration: const InputDecoration(
-                    labelText: 'Gender',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'male', child: Text('Male')),
-                    DropdownMenuItem(value: 'female', child: Text('Female')),
-                  ],
-                  onChanged: (value) {
-                    setDialogState(() => gender = value ?? 'male');
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (firstNameController.text.isEmpty) return;
-                
-                final person = Person(
-                  id: '',
-                  familyTreeId: 'main-family-tree',
-                  firstName: firstNameController.text,
-                  lastName: lastNameController.text,
-                  gender: gender,
-                  relationships: Relationships(),
-                  createdAt: DateTime.now(),
-                  updatedAt: DateTime.now(),
-                );
-                
-                try {
-                  await _adminRepo.addPerson(person);
-                  Navigator.pop(context);
-                  _loadData();
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(content: Text('Person added successfully')),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
-                }
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        ),
+      barrierColor: Colors.black.withOpacity(0.7),
+      builder: (context) => AddPersonDialog(
+        familyTreeId: 'main-family-tree',
+        onSave: (person) async {
+          try {
+            await _adminRepo.addPerson(person);
+            _loadData();
+            if (mounted) {
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                const SnackBar(content: Text('Person added successfully')),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                SnackBar(content: Text('Error: $e')),
+              );
+            }
+          }
+        },
       ),
     );
   }
@@ -1437,57 +1413,444 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
     );
   }
 
-  void _showAddPostDialog() {
-    final contentController = TextEditingController();
+  void _showEditPostDialog(Post post) {
+    final contentController = TextEditingController(text: post.content);
     final user = ref.read(authStateProvider).value;
+    
+    // Existing media
+    List<String> existingPhotos = List.from(post.photos);
+    List<String> existingVideos = List.from(post.videos);
+    List<String> existingFiles = List.from(post.files);
+    
+    // New media
+    List<XFile> newImages = [];
+    List<XFile> newVideos = [];
+    List<PlatformFile> newFiles = [];
+    
+    bool isUploading = false;
     
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Create Post', style: GoogleFonts.playfairDisplay()),
-        content: TextField(
-          controller: contentController,
-          decoration: const InputDecoration(
-            labelText: 'What\'s on your mind?',
-            border: OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Edit Post', style: GoogleFonts.playfairDisplay()),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: contentController,
+                  decoration: const InputDecoration(
+                    labelText: 'What\'s on your mind?',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 5,
+                ),
+                const SizedBox(height: 16),
+                
+                // Media/File buttons
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final ImagePicker picker = ImagePicker();
+                        final images = await picker.pickMultiImage();
+                        setDialogState(() => newImages.addAll(images));
+                      },
+                      icon: const Icon(Icons.image, size: 18),
+                      label: const Text('Photos'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentTeal,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final ImagePicker picker = ImagePicker();
+                        final video = await picker.pickVideo(source: ImageSource.gallery);
+                        if (video != null) {
+                          setDialogState(() => newVideos.add(video));
+                        }
+                      },
+                      icon: const Icon(Icons.video_library, size: 18),
+                      label: const Text('Video'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentCyan,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final result = await FilePicker.platform.pickFiles(
+                          allowMultiple: true,
+                          type: FileType.custom,
+                          allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'xlsx', 'pptx'],
+                        );
+                        if (result != null) {
+                          setDialogState(() => newFiles.addAll(result.files));
+                        }
+                      },
+                      icon: const Icon(Icons.attach_file, size: 18),
+                      label: const Text('Files'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentGold,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                
+                // Existing Media Preview
+                if (existingPhotos.isNotEmpty || existingVideos.isNotEmpty || existingFiles.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('Existing Attachments:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  if (existingPhotos.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: existingPhotos.asMap().entries.map((entry) => Chip(
+                        label: Text('Photo ${entry.key + 1}'),
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        onDeleted: () => setDialogState(() => existingPhotos.removeAt(entry.key)),
+                      )).toList(),
+                    ),
+                  if (existingVideos.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: existingVideos.asMap().entries.map((entry) => Chip(
+                        avatar: const Icon(Icons.video_library, size: 16),
+                        label: Text('Video ${entry.key + 1}'),
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        onDeleted: () => setDialogState(() => existingVideos.removeAt(entry.key)),
+                      )).toList(),
+                    ),
+                  if (existingFiles.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: existingFiles.asMap().entries.map((entry) => Chip(
+                        avatar: const Icon(Icons.attach_file, size: 16),
+                        label: Text('File ${entry.key + 1}'),
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        onDeleted: () => setDialogState(() => existingFiles.removeAt(entry.key)),
+                      )).toList(),
+                    ),
+                ],
+
+                // New Media Preview
+                if (newImages.isNotEmpty || newVideos.isNotEmpty || newFiles.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('New Attachments:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  if (newImages.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: newImages.map((img) => Chip(
+                        label: Text(img.name),
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        onDeleted: () => setDialogState(() => newImages.remove(img)),
+                      )).toList(),
+                    ),
+                  if (newVideos.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: newVideos.map((vid) => Chip(
+                        avatar: const Icon(Icons.video_library, size: 16),
+                        label: Text(vid.name),
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        onDeleted: () => setDialogState(() => newVideos.remove(vid)),
+                      )).toList(),
+                    ),
+                  if (newFiles.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: newFiles.map((file) => Chip(
+                        avatar: const Icon(Icons.attach_file, size: 16),
+                        label: Text(file.name),
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        onDeleted: () => setDialogState(() => newFiles.remove(file)),
+                      )).toList(),
+                    ),
+                ],
+                
+                if (isUploading) ...[
+                  const SizedBox(height: 16),
+                  const Center(child: CircularProgressIndicator()),
+                  const SizedBox(height: 8),
+                  const Center(child: Text('Updating post...')),
+                ],
+              ],
+            ),
           ),
-          maxLines: 5,
+          actions: [
+            TextButton(
+              onPressed: isUploading ? null : () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isUploading ? null : () async {
+                if (contentController.text.isEmpty) return;
+                
+                setDialogState(() => isUploading = true);
+                
+                try {
+                  final storageService = StorageService();
+                  
+                  // Upload new media
+                  for (final image in newImages) {
+                    final bytes = await image.readAsBytes();
+                    final url = await storageService.uploadImage(image.name, Uint8List.fromList(bytes));
+                    if (url != null) existingPhotos.add(url);
+                  }
+                  
+                  for (final video in newVideos) {
+                    final bytes = await video.readAsBytes();
+                    final url = await storageService.uploadVideo(video.name, Uint8List.fromList(bytes));
+                    if (url != null) existingVideos.add(url);
+                  }
+                  
+                  for (final file in newFiles) {
+                    if (file.bytes != null) {
+                      final url = await storageService.uploadFile(file.name, file.bytes!);
+                      if (url != null) existingFiles.add(url);
+                    }
+                  }
+                  
+                  final updatedPost = post.copyWith(
+                    content: contentController.text,
+                    photos: existingPhotos,
+                    videos: existingVideos,
+                    files: existingFiles,
+                  );
+                  
+                  // We need to implement updatePost in AdminRepository
+                  // For now, let's assume it exists or we'll add it
+                  await _adminRepo.updatePost(updatedPost);
+                  
+                  Navigator.pop(context);
+                  _loadData();
+                  if (mounted) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(content: Text('Post updated successfully')),
+                    );
+                  }
+                } catch (e) {
+                  setDialogState(() => isUploading = false);
+                  if (mounted) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+      ),
+    );
+  }
+
+  void _showAddPostDialog() {
+    final contentController = TextEditingController();
+    final user = ref.read(authStateProvider).value;
+    List<XFile> selectedImages = [];
+    List<XFile> selectedVideos = [];
+    List<PlatformFile> selectedFiles = [];
+    bool isUploading = false;
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Create Post', style: GoogleFonts.playfairDisplay()),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: contentController,
+                  decoration: const InputDecoration(
+                    labelText: 'What\'s on your mind?',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 5,
+                ),
+                const SizedBox(height: 16),
+                
+                // Media/File buttons
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final ImagePicker picker = ImagePicker();
+                        final images = await picker.pickMultiImage();
+                        setDialogState(() => selectedImages.addAll(images));
+                      },
+                      icon: const Icon(Icons.image, size: 18),
+                      label: const Text('Photos'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentTeal,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final ImagePicker picker = ImagePicker();
+                        final video = await picker.pickVideo(source: ImageSource.gallery);
+                        if (video != null) {
+                          setDialogState(() => selectedVideos.add(video));
+                        }
+                      },
+                      icon: const Icon(Icons.video_library, size: 18),
+                      label: const Text('Video'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentCyan,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final result = await FilePicker.platform.pickFiles(
+                          allowMultiple: true,
+                          type: FileType.custom,
+                          allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'xlsx', 'pptx'],
+                        );
+                        if (result != null) {
+                          setDialogState(() => selectedFiles.addAll(result.files));
+                        }
+                      },
+                      icon: const Icon(Icons.attach_file, size: 18),
+                      label: const Text('Files'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentGold,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                
+                // Selected media preview
+                if (selectedImages.isNotEmpty || selectedVideos.isNotEmpty || selectedFiles.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('Attachments:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  if (selectedImages.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: selectedImages.map((img) => Chip(
+                        label: Text(img.name),
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        onDeleted: () => setDialogState(() => selectedImages.remove(img)),
+                      )).toList(),
+                    ),
+                  if (selectedVideos.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: selectedVideos.map((vid) => Chip(
+                        avatar: const Icon(Icons.video_library, size: 16),
+                        label: Text(vid.name),
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        onDeleted: () => setDialogState(() => selectedVideos.remove(vid)),
+                      )).toList(),
+                    ),
+                  if (selectedFiles.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: selectedFiles.map((file) => Chip(
+                        avatar: const Icon(Icons.attach_file, size: 16),
+                        label: Text(file.name),
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        onDeleted: () => setDialogState(() => selectedFiles.remove(file)),
+                      )).toList(),
+                    ),
+                ],
+                
+                if (isUploading) ...[
+                  const SizedBox(height: 16),
+                  const Center(child: CircularProgressIndicator()),
+                  const SizedBox(height: 8),
+                  const Center(child: Text('Uploading media...')),
+                ],
+              ],
+            ),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              if (contentController.text.isEmpty) return;
-              
-              final post = Post(
-                id: '',
-                familyTreeId: 'main-family-tree',
-                userId: user?.uid ?? '',
-                userName: user?.displayName ?? 'Admin',
-                userPhoto: user?.photoURL ?? '',
-                content: contentController.text,
-                createdAt: DateTime.now(),
-              );
-              
-              try {
-                await _adminRepo.createPost(post);
-                Navigator.pop(context);
-                _loadData();
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  const SnackBar(content: Text('Post created successfully')),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
-                );
-              }
-            },
-            child: const Text('Post'),
-          ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: isUploading ? null : () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isUploading ? null : () async {
+                if (contentController.text.isEmpty) return;
+                
+                setDialogState(() => isUploading = true);
+                
+                try {
+                  final storageService = StorageService();
+                  List<String> photoUrls = [];
+                  List<String> videoUrls = [];
+                  List<String> fileUrls = [];
+                  
+                  // Upload images
+                  for (final image in selectedImages) {
+                    final bytes = await image.readAsBytes();
+                    final url = await storageService.uploadImage(image.name, Uint8List.fromList(bytes));
+                    if (url != null) photoUrls.add(url);
+                  }
+                  
+                  // Upload videos
+                  for (final video in selectedVideos) {
+                    final bytes = await video.readAsBytes();
+                    final url = await storageService.uploadVideo(video.name, Uint8List.fromList(bytes));
+                    if (url != null) videoUrls.add(url);
+                  }
+                  
+                  // Upload files
+                  for (final file in selectedFiles) {
+                    if (file.bytes != null) {
+                      final url = await storageService.uploadFile(file.name, file.bytes!);
+                      if (url != null) fileUrls.add(url);
+                    }
+                  }
+                  
+                  final post = Post(
+                    id: '',
+                    familyTreeId: 'main-family-tree',
+                    userId: user?.uid ?? '',
+                    userName: user?.displayName ?? 'Admin',
+                    userPhoto: user?.photoURL ?? '',
+                    content: contentController.text,
+                    photos: photoUrls,
+                    videos: videoUrls,
+                    files: fileUrls,
+                    createdAt: DateTime.now(),
+                  );
+                  
+                  await _adminRepo.createPost(post);
+                  Navigator.pop(context);
+                  _loadData();
+                  if (mounted) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(content: Text('Post created successfully')),
+                    );
+                  }
+                } catch (e) {
+                  setDialogState(() => isUploading = false);
+                  if (mounted) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Post'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1530,6 +1893,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
     final locationController = TextEditingController();
+    final mapLinkController = TextEditingController();
     DateTime selectedDate = DateTime.now().add(const Duration(days: 7));
     TimeOfDay selectedTime = const TimeOfDay(hour: 10, minute: 0);
     
@@ -1565,6 +1929,30 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
                     labelText: 'Location',
                     border: OutlineInputBorder(),
                   ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: mapLinkController,
+                  decoration: InputDecoration(
+                    labelText: 'Google Maps Link (Optional)',
+                    hintText: 'https://maps.google.com/...',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.map),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.location_on),
+                      tooltip: 'Pick on Map',
+                      onPressed: () async {
+                        final link = await showDialog<String>(
+                          context: context,
+                          builder: (context) => const LocationPickerDialog(),
+                        );
+                        if (link != null) {
+                          mapLinkController.text = link;
+                        }
+                      },
+                    ),
+                  ),
+                  keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: 16),
                 ListTile(
@@ -1624,6 +2012,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
                   title: titleController.text,
                   description: descriptionController.text,
                   location: locationController.text,
+                  mapLink: mapLinkController.text.isEmpty ? null : mapLinkController.text,
                   dateTime: dateTime,
                   createdBy: user?.uid ?? '',
                   attendees: [],
@@ -1680,6 +2069,141 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
             child: const Text('Delete'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showEditEventDialog(Appointment event) {
+    final titleController = TextEditingController(text: event.title);
+    final descriptionController = TextEditingController(text: event.description);
+    final locationController = TextEditingController(text: event.location);
+    final mapLinkController = TextEditingController(text: event.mapLink);
+    DateTime selectedDateTime = event.dateTime;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Edit Event', style: GoogleFonts.playfairDisplay()),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Title',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: locationController,
+                  decoration: const InputDecoration(
+                    labelText: 'Location',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.location_on),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: mapLinkController,
+                  decoration: InputDecoration(
+                    labelText: 'Google Maps Link',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.map),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.location_on),
+                      tooltip: 'Pick on Map',
+                      onPressed: () async {
+                        final link = await showDialog<String>(
+                          context: context,
+                          builder: (context) => const LocationPickerDialog(),
+                        );
+                        if (link != null) {
+                          mapLinkController.text = link;
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  title: const Text('Date & Time'),
+                  subtitle: Text(_formatDate(selectedDateTime)),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDateTime,
+                      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (date != null) {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(selectedDateTime),
+                      );
+                      if (time != null) {
+                        setState(() {
+                          selectedDateTime = DateTime(
+                            date.year,
+                            date.month,
+                            date.day,
+                            time.hour,
+                            time.minute,
+                          );
+                        });
+                      }
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (titleController.text.isEmpty) return;
+
+                final updatedEvent = event.copyWith(
+                  title: titleController.text,
+                  description: descriptionController.text,
+                  location: locationController.text,
+                  mapLink: mapLinkController.text,
+                  dateTime: selectedDateTime,
+                );
+
+                try {
+                  await _adminRepo.updateEvent(updatedEvent);
+                  Navigator.pop(context);
+                  _loadData();
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(content: Text('Event updated successfully')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
   }

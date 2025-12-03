@@ -257,6 +257,28 @@ class _LandingPageState extends ConsumerState<LandingPage>
 
           const Spacer(),
 
+          // Demo button
+          if (!isMobile)
+            TextButton.icon(
+              onPressed: () => context.go('/demo'),
+              icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
+              label: const Text('Demo'),
+              style: TextButton.styleFrom(
+                foregroundColor: isDark ? AppTheme.primaryLight : AppTheme.primaryDeep,
+              ),
+            ),
+          
+          // Dashboard button
+          if (!isMobile)
+            TextButton.icon(
+              onPressed: () => context.go('/dashboard'),
+              icon: const Icon(Icons.dashboard_rounded, size: 18),
+              label: const Text('Dashboard'),
+              style: TextButton.styleFrom(
+                foregroundColor: isDark ? AppTheme.primaryLight : AppTheme.primaryDeep,
+              ),
+            ),
+
           // Theme toggle
           _buildThemeToggle(isDark),
 
@@ -539,6 +561,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
         color: AppTheme.accentTeal,
         gradient: [AppTheme.accentTeal, AppTheme.accentCyan],
       ),
+      /*
       _FeatureData(
         icon: Icons.hub_rounded,
         title: 'Radial & Timeline',
@@ -546,6 +569,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
         color: AppTheme.accentCyan,
         gradient: [AppTheme.accentCyan, AppTheme.info],
       ),
+      */
       _FeatureData(
         icon: Icons.touch_app_rounded,
         title: 'Intuitive Controls',

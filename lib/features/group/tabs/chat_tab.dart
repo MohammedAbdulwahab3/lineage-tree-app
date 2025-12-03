@@ -11,6 +11,7 @@ import 'package:family_tree/data/services/storage_service.dart';
 import 'package:family_tree/features/auth/providers/auth_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:family_tree/providers/admin_provider.dart';
 
 /// Provider for messages stream
 final messagesProvider = StreamProvider.family<List<Message>, String>((ref, familyTreeId) {
@@ -183,6 +184,8 @@ class _ChatTabState extends ConsumerState<ChatTab> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
+    final userRole = ref.watch(userRoleProvider);
+    final isAdmin = userRole.value?.isAdmin ?? false;
     const familyTreeId = 'main-family-tree';
     final messagesAsync = ref.watch(messagesProvider(familyTreeId));
 
@@ -210,7 +213,7 @@ class _ChatTabState extends ConsumerState<ChatTab> {
                 itemBuilder: (context, index) {
                   final message = messages[index];
                   final isOwnMessage = message.userId == user?.uid;
-                  return _buildMessageBubble(message, isOwnMessage);
+                  return _buildMessageBubble(message, isOwnMessage, isAdmin);
                 },
               );
             },
@@ -287,8 +290,14 @@ class _ChatTabState extends ConsumerState<ChatTab> {
     );
   }
 
-  Widget _buildMessageBubble(Message message, bool isOwnMessage) {
-    return Padding(
+  Widget _buildMessageBubble(Message message, bool isOwnMessage, bool isAdmin) {
+    return GestureDetector(
+      onLongPress: () {
+        if (isOwnMessage || isAdmin) {
+          _showMessageOptions(message, isOwnMessage, isAdmin);
+        }
+      },
+      child: Padding(
       padding: const EdgeInsets.only(bottom: AppTheme.spaceSm),
       child: Row(
         mainAxisAlignment: isOwnMessage ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -414,6 +423,7 @@ class _ChatTabState extends ConsumerState<ChatTab> {
             const SizedBox(width: AppTheme.spaceXs),
         ],
       ),
+      ),
     );
   }
 
@@ -443,6 +453,115 @@ class _ChatTabState extends ConsumerState<ChatTab> {
               fontSize: 14,
               color: AppTheme.textSecondary,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMessageOptions(Message message, bool isOwnMessage, bool isAdmin) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: widget.isDark ? AppTheme.surfaceDark : Colors.white,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (message.type == 'text')
+            ListTile(
+              leading: const Icon(Icons.edit, color: AppTheme.primaryLight),
+              title: Text('Edit', style: TextStyle(color: widget.isDark ? Colors.white : Colors.black)),
+              onTap: () {
+                Navigator.pop(context);
+                _showEditMessageDialog(message);
+              },
+            ),
+          ListTile(
+            leading: const Icon(Icons.delete, color: Colors.red),
+            title: Text('Delete', style: TextStyle(color: widget.isDark ? Colors.white : Colors.black)),
+            onTap: () {
+              Navigator.pop(context);
+              _confirmDeleteMessage(message);
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  void _showEditMessageDialog(Message message) {
+    final controller = TextEditingController(text: message.text);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: widget.isDark ? AppTheme.surfaceDark : Colors.white,
+        title: Text('Edit Message', style: TextStyle(color: widget.isDark ? Colors.white : Colors.black)),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+          ),
+          style: TextStyle(color: widget.isDark ? Colors.white : Colors.black),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.trim().isEmpty) return;
+              
+              try {
+                final updatedMessage = message.copyWith(text: controller.text.trim());
+                await _repository.updateMessage(updatedMessage);
+                if (mounted) Navigator.pop(context);
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error updating message: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteMessage(Message message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: widget.isDark ? AppTheme.surfaceDark : Colors.white,
+        title: Text('Delete Message', style: TextStyle(color: widget.isDark ? Colors.white : Colors.black)),
+        content: Text(
+          'Are you sure you want to delete this message?',
+          style: TextStyle(color: widget.isDark ? Colors.white70 : Colors.black87),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              try {
+                await _repository.deleteMessage(message.id);
+                if (mounted) Navigator.pop(context);
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error deleting message: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Delete'),
           ),
         ],
       ),

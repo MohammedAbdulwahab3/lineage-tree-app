@@ -4,8 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ApiService {
-  // Change this to your backend URL
-  static const String baseUrl = 'http://localhost:8080';
+  // Production backend URL (Render)
+  static const String baseUrl = 'https://family-tree-backend-sws1.onrender.com';
   
   // Singleton pattern
   static final ApiService _instance = ApiService._internal();
@@ -41,7 +41,8 @@ class ApiService {
           print('ApiService: Error getting token: $e');
         }
       } else {
-        print('ApiService: User is null');
+        // Silently handle null user - normal when not logged in
+        // print('ApiService: User is null');
       }
     }
     return headers;

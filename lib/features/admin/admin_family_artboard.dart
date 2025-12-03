@@ -6,6 +6,7 @@ import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/repositories/person_repository.dart';
 import 'package:family_tree/data/repositories/admin_repository.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
+import 'package:family_tree/core/theme/app_theme.dart';
 
 /// Alias for backward compatibility
 typedef ArtboardColors = ElegantColors;
@@ -54,6 +55,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   
   // Zoom level for tree view (controlled by buttons only)
   double _zoomLevel = 1.0;
+  final ScrollController _verticalScrollController = ScrollController(initialScrollOffset: 500);
+  final ScrollController _horizontalScrollController = ScrollController(initialScrollOffset: 500);
 
   @override
   void initState() {
@@ -72,6 +75,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   @override
   void dispose() {
     _fadeController.dispose();
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
     super.dispose();
   }
 
@@ -160,8 +165,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
-      backgroundColor: ArtboardColors.cream,
+      backgroundColor: isDark ? AppTheme.backgroundDark : ArtboardColors.cream,
       body: Stack(
         children: [
           // Subtle pattern background
@@ -187,98 +194,201 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             _buildDetailPanel(),
         ],
       ),
-      floatingActionButton: _buildAddButton(),
     );
   }
 
   Widget _buildPatternBackground() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Positioned.fill(
       child: CustomPaint(
-        painter: _PatternPainter(),
+        painter: _PatternPainter(isDark: isDark),
       ),
     );
   }
+  
+  // Helper method to get color based on theme
+  Color _getTextColor(BuildContext context, Color lightColor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark ? Colors.white : lightColor;
+  }
+  
+  Color _getBackgroundColor(BuildContext context, Color lightColor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark ? AppTheme.surfaceDark : lightColor;
+  }
 
   Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Row(
-        children: [
-          // Back button
-          _buildElegantButton(
-            icon: Icons.arrow_back_rounded,
-            onTap: () => context.go('/admin'),
-          ),
-          const SizedBox(width: 20),
-          
-          // Title section
-          Expanded(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 600;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        
+        if (isMobile) {
+          // Mobile layout - vertical stack
+          return Container(
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Back button and badge row
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: ArtboardColors.terracotta.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: ArtboardColors.terracotta.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.family_restroom_rounded,
-                            size: 16,
-                            color: ArtboardColors.terracotta,
+                    _buildElegantButton(
+                      icon: Icons.arrow_back_rounded,
+                      onTap: () => context.go('/admin'),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: ArtboardColors.terracotta.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: ArtboardColors.terracotta.withOpacity(0.3),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'FAMILY ARTBOARD',
-                            style: GoogleFonts.cormorantGaramond(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 2,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.family_restroom_rounded,
+                              size: 14,
                               color: ArtboardColors.terracotta,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 5),
+                            Text(
+                              'FAMILY ARTBOARD',
+                              style: GoogleFonts.cormorantGaramond(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.5,
+                                color: ArtboardColors.terracotta,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
+                
+                // Title
                 Text(
                   'Mohammed\'s Legacy',
                   style: GoogleFonts.playfairDisplay(
-                    fontSize: 32,
+                    fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: ArtboardColors.charcoal,
+                    color: isDark ? Colors.white : ArtboardColors.charcoal,
                     letterSpacing: -0.5,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${_persons.length} family members across ${_generations.length - 1} generations',
+                  '${_persons.length} members • ${_generations.length - 1} generations',
                   style: GoogleFonts.cormorantGaramond(
-                    fontSize: 16,
-                    color: ArtboardColors.warmGray,
+                    fontSize: 14,
+                    color: isDark ? Colors.white70 : ArtboardColors.warmGray,
                     fontStyle: FontStyle.italic,
                   ),
                 ),
+                const SizedBox(height: 12),
+                
+                // Stats - horizontal compact
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildCompactStatBadge('${_persons.length}', 'Members', ArtboardColors.terracotta),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildCompactStatBadge('5', 'Generations', ArtboardColors.sage),
+                    ),
+                  ],
+                ),
               ],
             ),
+          );
+        }
+        
+        // Desktop layout - original horizontal design
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              _buildElegantButton(
+                icon: Icons.arrow_back_rounded,
+                onTap: () => context.go('/admin'),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: ArtboardColors.terracotta.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: ArtboardColors.terracotta.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.family_restroom_rounded,
+                                size: 16,
+                                color: ArtboardColors.terracotta,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'FAMILY ARTBOARD',
+                                style: GoogleFonts.cormorantGaramond(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 2,
+                                  color: ArtboardColors.terracotta,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Mohammed\'s Legacy',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w700,
+                        color: ArtboardColors.charcoal,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_persons.length} family members across ${_generations.length - 1} generations',
+                      style: GoogleFonts.cormorantGaramond(
+                        fontSize: 16,
+                        color: ArtboardColors.warmGray,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildStatBadge('${_persons.length}', 'Members', ArtboardColors.terracotta),
+              const SizedBox(width: 12),
+              _buildStatBadge('5', 'Generations', ArtboardColors.sage),
+            ],
           ),
-          
-          // Stats cards
-          _buildStatBadge('${_persons.length}', 'Members', ArtboardColors.terracotta),
-          const SizedBox(width: 12),
-          _buildStatBadge('5', 'Generations', ArtboardColors.sage),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -320,234 +430,504 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
 
-  Widget _buildFilterBar() {
+  Widget _buildCompactStatBadge(String value, String label, Color color) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: ArtboardColors.warmWhite,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: ArtboardColors.champagne),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
-            color: ArtboardColors.sienna.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
+            color: color.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Search
-          Expanded(
-            flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: ArtboardColors.cream,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TextField(
-                onChanged: (value) {
-                  _searchQuery = value;
-                  _filterPersons();
-                },
-                cursorColor: ArtboardColors.terracotta,
-                style: GoogleFonts.cormorantGaramond(
-                  fontSize: 16,
-                  color: ArtboardColors.charcoal,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Search family members...',
-                  hintStyle: GoogleFonts.cormorantGaramond(
-                    color: ArtboardColors.warmGray.withOpacity(0.6),
-                    fontStyle: FontStyle.italic,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: ArtboardColors.champagne),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: ArtboardColors.champagne),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: ArtboardColors.terracotta, width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    color: ArtboardColors.terracotta.withOpacity(0.7),
-                  ),
-                ),
-              ),
+          Text(
+            value,
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: color,
             ),
           ),
-          
-          const SizedBox(width: 16),
-          
-          // Generation filter
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              color: ArtboardColors.cream,
-              borderRadius: BorderRadius.circular(12),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: GoogleFonts.cormorantGaramond(
+              fontSize: 11,
+              color: ArtboardColors.warmGray,
+              letterSpacing: 0.5,
             ),
-            child: Row(
-              children: _generations.map((gen) {
-                final isSelected = _selectedGeneration == gen;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() => _selectedGeneration = gen);
-                    _filterPersons();
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected ? ArtboardColors.terracotta : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      gen,
-                      style: GoogleFonts.cormorantGaramond(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isSelected ? Colors.white : ArtboardColors.warmGray,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          
-          const SizedBox(width: 16),
-          
-          // Layout toggle button
-          Container(
-            decoration: BoxDecoration(
-              color: ArtboardColors.warmWhite,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: ArtboardColors.champagne),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildLayoutToggle('focus', Icons.center_focus_strong_rounded, 'Focus', isFirst: true),
-                _buildLayoutToggle('list', Icons.view_list_rounded, 'List'),
-                _buildLayoutToggle('tree', Icons.account_tree_rounded, 'Tree', isLast: true),
-              ],
-            ),
-          ),
-          
-          const SizedBox(width: 12),
-          
-          // Multi-select toggle
-          GestureDetector(
-            onTap: () => setState(() {
-              _isMultiSelectMode = !_isMultiSelectMode;
-              if (!_isMultiSelectMode) _selectedPersonIds.clear();
-            }),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: _isMultiSelectMode ? ArtboardColors.terracotta : ArtboardColors.warmWhite,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _isMultiSelectMode ? ArtboardColors.terracotta : ArtboardColors.champagne,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _isMultiSelectMode ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
-                    size: 16,
-                    color: _isMultiSelectMode ? Colors.white : ArtboardColors.warmGray,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Select',
-                    style: GoogleFonts.cormorantGaramond(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: _isMultiSelectMode ? Colors.white : ArtboardColors.warmGray,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          // Batch delete button (only when multi-select is active)
-          if (_isMultiSelectMode && _selectedPersonIds.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: _confirmBatchDelete,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: ArtboardColors.rust,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.delete_sweep_rounded, size: 16, color: Colors.white),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Delete (${_selectedPersonIds.length})',
-                      style: GoogleFonts.cormorantGaramond(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          
-          // Batch add button
-          if (_isMultiSelectMode) ...[
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => _showBatchAddDialog(),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: ArtboardColors.sage,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.group_add_rounded, size: 16, color: Colors.white),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Add Multiple',
-                      style: GoogleFonts.cormorantGaramond(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          
-          const SizedBox(width: 12),
-          
-          // Refresh button
-          _buildElegantButton(
-            icon: Icons.refresh_rounded,
-            onTap: _loadData,
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFilterBar() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 900;
+        
+        if (isMobile) {
+          // Mobile layout - horizontally scrollable with all controls
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: ArtboardColors.warmWhite,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: ArtboardColors.champagne),
+                  boxShadow: [
+                    BoxShadow(
+                      color: ArtboardColors.sienna.withOpacity(0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // Search
+                    Container(
+                      width: 200,
+                      height: 42,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: ArtboardColors.champagne),
+                      ),
+                      child: TextField(
+                        onChanged: (value) {
+                          _searchQuery = value;
+                          _filterPersons();
+                        },
+                        cursorColor: ArtboardColors.terracotta,
+                        style: GoogleFonts.cormorantGaramond(
+                          fontSize: 15,
+                          color: Colors.black87, // Always dark text on white background
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Search...',
+                          hintStyle: GoogleFonts.cormorantGaramond(
+                            color: Colors.black45, // Clear hint color
+                            fontSize: 14,
+                            fontStyle: FontStyle.italic,
+                          ),
+                          border: InputBorder.none,
+                          icon: Icon(
+                            Icons.search_rounded,
+                            size: 20,
+                            color: ArtboardColors.terracotta,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    
+                    // Generation filters
+                    ...List.generate(_generations.length, (index) {
+                      final gen = _generations[index];
+                      final isSelected = _selectedGeneration == gen;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() => _selectedGeneration = gen);
+                            _filterPersons();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isSelected ? ArtboardColors.terracotta : ArtboardColors.cream,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isSelected ? ArtboardColors.terracotta : ArtboardColors.champagne,
+                              ),
+                            ),
+                            child: Text(
+                              gen,
+                              style: GoogleFonts.cormorantGaramond(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected ? Colors.white : ArtboardColors.warmGray,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                    
+                    const SizedBox(width: 4),
+                    
+                    // Layout toggles
+                    _buildCompactLayoutToggle('focus', Icons.center_focus_strong_rounded),
+                    const SizedBox(width: 6),
+                    _buildCompactLayoutToggle('list', Icons.view_list_rounded),
+                    const SizedBox(width: 6),
+                    _buildCompactLayoutToggle('tree', Icons.account_tree_rounded),
+                    
+                    const SizedBox(width: 10),
+                    
+                    // Multi-select
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _isMultiSelectMode = !_isMultiSelectMode;
+                        if (!_isMultiSelectMode) _selectedPersonIds.clear();
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _isMultiSelectMode ? ArtboardColors.terracotta : ArtboardColors.cream,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _isMultiSelectMode ? ArtboardColors.terracotta : ArtboardColors.champagne,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _isMultiSelectMode ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                              size: 16,
+                              color: _isMultiSelectMode ? Colors.white : ArtboardColors.warmGray,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Select',
+                              style: GoogleFonts.cormorantGaramond(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _isMultiSelectMode ? Colors.white : ArtboardColors.warmGray,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(width: 10),
+                    
+                    // Add Person
+                    GestureDetector(
+                      onTap: _showAddPersonDialog,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: ArtboardColors.terracotta,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.person_add_rounded, size: 16, color: Colors.white),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Add',
+                              style: GoogleFonts.cormorantGaramond(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(width: 6),
+                    
+                    // Refresh
+                    GestureDetector(
+                      onTap: _loadData,
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: ArtboardColors.cream,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: ArtboardColors.champagne),
+                        ),
+                        child: Icon(
+                          Icons.refresh_rounded,
+                          size: 20,
+                          color: ArtboardColors.terracotta,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+        
+        // Desktop layout - full controls
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ArtboardColors.warmWhite,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: ArtboardColors.champagne),
+            boxShadow: [
+              BoxShadow(
+                color: ArtboardColors.sienna.withOpacity(0.05),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Search
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: ArtboardColors.cream,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: TextField(
+                    onChanged: (value) {
+                      _searchQuery = value;
+                      _filterPersons();
+                    },
+                    cursorColor: ArtboardColors.terracotta,
+                    style: GoogleFonts.cormorantGaramond(
+                      fontSize: 16,
+                      color: ArtboardColors.charcoal,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search family members...',
+                      hintStyle: GoogleFonts.cormorantGaramond(
+                        color: ArtboardColors.warmGray.withOpacity(0.6),
+                        fontStyle: FontStyle.italic,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: ArtboardColors.champagne),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: ArtboardColors.champagne),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: ArtboardColors.terracotta, width: 2),
+                      ),
+                      filled: true,
+                      fillColor: ElegantColors.cream,
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: ArtboardColors.terracotta.withOpacity(0.7),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 16),
+              
+              // Generation filter
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  color: ArtboardColors.cream,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: _generations.map((gen) {
+                    final isSelected = _selectedGeneration == gen;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => _selectedGeneration = gen);
+                        _filterPersons();
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected ? ArtboardColors.terracotta : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          gen,
+                          style: GoogleFonts.cormorantGaramond(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected ? Colors.white : ArtboardColors.warmGray,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              
+              const SizedBox(width: 16),
+              
+              // Layout toggle button
+              Container(
+                decoration: BoxDecoration(
+                  color: ArtboardColors.warmWhite,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: ArtboardColors.champagne),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildLayoutToggle('focus', Icons.center_focus_strong_rounded, 'Focus', isFirst: true),
+                    _buildLayoutToggle('list', Icons.view_list_rounded, 'List'),
+                    _buildLayoutToggle('tree', Icons.account_tree_rounded, 'Tree', isLast: true),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(width: 12),
+              
+              // Multi-select toggle
+              GestureDetector(
+                onTap: () => setState(() {
+                  _isMultiSelectMode = !_isMultiSelectMode;
+                  if (!_isMultiSelectMode) _selectedPersonIds.clear();
+                }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _isMultiSelectMode ? ArtboardColors.terracotta : ArtboardColors.warmWhite,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _isMultiSelectMode ? ArtboardColors.terracotta : ArtboardColors.champagne,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isMultiSelectMode ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                        size: 16,
+                        color: _isMultiSelectMode ? Colors.white : ArtboardColors.warmGray,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Select',
+                        style: GoogleFonts.cormorantGaramond(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _isMultiSelectMode ? Colors.white : ArtboardColors.warmGray,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Batch delete button (only when multi-select is active)
+              if (_isMultiSelectMode && _selectedPersonIds.isNotEmpty) ...[ 
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _confirmBatchDelete,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: ArtboardColors.rust,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.delete_sweep_rounded, size: 16, color: Colors.white),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Delete (${_selectedPersonIds.length})',
+                          style: GoogleFonts.cormorantGaramond(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              
+              // Batch add button
+              if (_isMultiSelectMode) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => _showBatchAddDialog(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: ArtboardColors.sage,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.group_add_rounded, size: 16, color: Colors.white),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Add Multiple',
+                          style: GoogleFonts.cormorantGaramond(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              
+              const SizedBox(width: 12),
+              
+              // Add Person button
+              GestureDetector(
+                onTap: _showAddPersonDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: ArtboardColors.terracotta,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.person_add_rounded, size: 18, color: Colors.white),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Add Person',
+                        style: GoogleFonts.cormorantGaramond(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 8),
+              
+              // Refresh button
+              _buildElegantButton(
+                icon: Icons.refresh_rounded,
+                onTap: _loadData,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -577,6 +957,28 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactLayoutToggle(String mode, IconData icon) {
+    final isActive = _layoutMode == mode;
+    return GestureDetector(
+      onTap: () => setState(() => _layoutMode = mode),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isActive ? ArtboardColors.terracotta : ArtboardColors.cream,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? ArtboardColors.terracotta : ArtboardColors.champagne,
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: isActive ? Colors.white : ArtboardColors.warmGray,
         ),
       ),
     );
@@ -1060,99 +1462,170 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     final isCompact = totalChildren > 6;
     final padding = isCompact ? 10.0 : 16.0;
     
-    return GestureDetector(
-      onTap: () => setState(() => _focusStack.add(person.id)),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: 1),
-          duration: Duration(milliseconds: 200 + (index * 40)),
-          curve: Curves.easeOutBack,
-          builder: (context, value, child) {
-            return Transform.scale(scale: value, child: Opacity(opacity: value, child: child));
-          },
+    return LongPressDraggable<Person>(
+      data: person,
+      delay: const Duration(milliseconds: 300),
+      hapticFeedbackOnStart: true,
+      feedback: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(24),
+        child: Opacity(
+          opacity: 0.8,
           child: Container(
             width: cardWidth,
-            padding: EdgeInsets.all(padding),
+            height: cardWidth * 1.2,
             decoration: BoxDecoration(
               color: ArtboardColors.warmWhite,
-              borderRadius: BorderRadius.circular(isCompact ? 14 : 18),
-              border: Border.all(color: color.withOpacity(0.3), width: 1),
-              boxShadow: [
-                BoxShadow(color: color.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4)),
-              ],
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: color, width: 2),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Avatar - dynamic size
-                Container(
-                  width: avatarSize,
-                  height: avatarSize,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [color.withOpacity(0.85), color],
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: avatarSize,
+                    height: avatarSize,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [color.withOpacity(0.8), color],
+                      ),
+                      shape: BoxShape.circle,
                     ),
-                    shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: color.withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 2))],
-                  ),
-                  child: Center(
-                    child: Text(
-                      person.firstName[0].toUpperCase(),
-                      style: GoogleFonts.playfairDisplay(fontSize: avatarSize * 0.44, fontWeight: FontWeight.w700, color: Colors.white),
+                    child: Center(
+                      child: Text(
+                        person.firstName[0].toUpperCase(),
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: avatarSize * 0.4,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                
-                SizedBox(height: isCompact ? 6 : 10),
-                
-                // Name
-                Text(
-                  person.firstName,
-                  style: GoogleFonts.playfairDisplay(fontSize: fontSize, fontWeight: FontWeight.w700, color: ArtboardColors.charcoal),
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-                if (!isCompact)
+                  const SizedBox(height: 8),
                   Text(
-                    person.lastName,
-                    style: GoogleFonts.cormorantGaramond(fontSize: fontSize - 2, color: ArtboardColors.warmGray),
-                    overflow: TextOverflow.ellipsis,
+                    person.firstName,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w700,
+                      color: ArtboardColors.charcoal,
+                    ),
                   ),
-                
-                SizedBox(height: isCompact ? 4 : 8),
-                
-                // Descendants or explore
-                Text(
-                  hasChildren ? '$descendantCount desc.' : 'No children',
-                  style: GoogleFonts.cormorantGaramond(
-                    fontSize: isCompact ? 9 : 11, 
-                    fontWeight: hasChildren ? FontWeight.w600 : FontWeight.w400,
-                    color: hasChildren ? color : ArtboardColors.warmGray,
-                  ),
-                ),
-                
-                SizedBox(height: isCompact ? 4 : 8),
-                
-                // Explore button - dynamic size
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: isCompact ? 5 : 7),
-                  decoration: BoxDecoration(
-                    color: hasChildren ? color : ArtboardColors.warmGray.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    hasChildren ? 'Explore' : 'View',
-                    style: GoogleFonts.cormorantGaramond(fontSize: isCompact ? 10 : 12, fontWeight: FontWeight.w700, color: Colors.white),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
+      ),
+      child: DragTarget<Person>(
+        onWillAccept: (data) => data != null && data.id != person.id,
+        onAccept: (draggedPerson) => _swapPersons(draggedPerson, person),
+        builder: (context, candidateData, rejectedData) {
+          final isHovering = candidateData.isNotEmpty;
+          return GestureDetector(
+            onTap: () => setState(() => _focusStack.add(person.id)),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: Duration(milliseconds: 200 + (index * 40)),
+                curve: Curves.easeOutBack,
+                builder: (context, value, child) {
+                  return Transform.scale(scale: value, child: Opacity(opacity: value, child: child));
+                },
+                child: Container(
+                  width: cardWidth,
+                  padding: EdgeInsets.all(padding),
+                  decoration: BoxDecoration(
+                    color: ArtboardColors.warmWhite,
+                    borderRadius: BorderRadius.circular(isCompact ? 14 : 18),
+                    border: Border.all(
+                      color: isHovering ? color : color.withOpacity(0.3), 
+                      width: isHovering ? 2 : 1
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(isHovering ? 0.2 : 0.08), 
+                        blurRadius: isHovering ? 16 : 10, 
+                        offset: const Offset(0, 4)
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Avatar - dynamic size
+                      Container(
+                        width: avatarSize,
+                        height: avatarSize,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [color.withOpacity(0.85), color],
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [BoxShadow(color: color.withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 2))],
+                        ),
+                        child: Center(
+                          child: Text(
+                            person.firstName[0].toUpperCase(),
+                            style: GoogleFonts.playfairDisplay(fontSize: avatarSize * 0.44, fontWeight: FontWeight.w700, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                      
+                      SizedBox(height: isCompact ? 6 : 10),
+                      
+                      // Name
+                      Text(
+                        person.firstName,
+                        style: GoogleFonts.playfairDisplay(fontSize: fontSize, fontWeight: FontWeight.w700, color: ArtboardColors.charcoal),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      if (!isCompact)
+                        Text(
+                          person.lastName,
+                          style: GoogleFonts.cormorantGaramond(fontSize: fontSize - 2, color: ArtboardColors.warmGray),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      
+                      SizedBox(height: isCompact ? 4 : 8),
+                      
+                      // Descendants or explore
+                      Text(
+                        hasChildren ? '$descendantCount desc.' : 'No children',
+                        style: GoogleFonts.cormorantGaramond(
+                          fontSize: isCompact ? 9 : 11, 
+                          fontWeight: hasChildren ? FontWeight.w600 : FontWeight.w400,
+                          color: hasChildren ? color : ArtboardColors.warmGray,
+                        ),
+                      ),
+                      
+                      SizedBox(height: isCompact ? 4 : 8),
+                      
+                      // Explore button - dynamic size
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: isCompact ? 5 : 7),
+                        decoration: BoxDecoration(
+                          color: hasChildren ? color : ArtboardColors.warmGray.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          hasChildren ? 'Explore' : 'View',
+                          style: GoogleFonts.cormorantGaramond(fontSize: isCompact ? 10 : 12, fontWeight: FontWeight.w700, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1316,16 +1789,24 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             ),
           ),
           
-          // Tree content - scrollable without zoom on cursor
+          // Tree content - scrollable with padding above
           Expanded(
             child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+              controller: _verticalScrollController,
+              scrollDirection: Axis.vertical,
               child: SingleChildScrollView(
+                controller: _horizontalScrollController,
+                scrollDirection: Axis.horizontal,
                 child: Transform.scale(
                   scale: _zoomLevel,
                   alignment: Alignment.topCenter,
                   child: Padding(
-                    padding: const EdgeInsets.all(60),
+                    padding: const EdgeInsets.only(
+                      top: 500, // Allow scrolling "up"
+                      bottom: 500,
+                      left: 500,
+                      right: 500,
+                    ),
                     child: Column(
                       children: [
                         ...roots.map((root) => _buildHorizontalTreeNode(root, 0)),
@@ -2259,6 +2740,99 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     final branchColor = _getBranchColor(person);
     final isSelected = _selectedPerson?.id == person.id;
     
+    return LongPressDraggable<Person>(
+      data: person,
+      delay: const Duration(milliseconds: 300),
+      hapticFeedbackOnStart: true,
+      feedback: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(24),
+        child: Opacity(
+          opacity: 0.8,
+          child: Container(
+            width: 200,
+            height: 250,
+            decoration: BoxDecoration(
+              color: ArtboardColors.warmWhite,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: branchColor, width: 2),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [branchColor.withOpacity(0.8), branchColor],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        person.firstName[0].toUpperCase(),
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    person.firstName,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: ArtboardColors.charcoal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(
+        opacity: 0.3,
+        child: _buildCardContent(person, index, generation, branchColor, isSelected),
+      ),
+      onDragStarted: () {
+        setState(() => _selectedPerson = person);
+      },
+      child: DragTarget<Person>(
+        onWillAccept: (data) => data != null && data.id != person.id,
+        onAccept: (draggedPerson) {
+          _swapPersons(draggedPerson, person);
+        },
+        builder: (context, candidateData, rejectedData) {
+          final isHovering = candidateData.isNotEmpty;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            transform: Matrix4.identity()..scale(isHovering ? 1.05 : (isSelected ? 1.02 : 1.0)),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: isHovering
+                  ? [
+                      BoxShadow(
+                        color: branchColor.withOpacity(0.4),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ]
+                  : [],
+            ),
+            child: _buildCardContent(person, index, generation, branchColor, isSelected),
+          );
+        },
+      ),
+    );
+  }
+  
+  Widget _buildCardContent(Person person, int index, int generation, Color branchColor, bool isSelected) {
     return GestureDetector(
       onTap: () => setState(() => _selectedPerson = person),
       child: AnimatedContainer(
@@ -3449,6 +4023,20 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       ],
     );
   }
+  
+  // Drag-drop swap method
+  void _swapPersons(Person draggedPerson, Person targetPerson) async {
+    final tempTime = draggedPerson.createdAt;
+    
+    await _personRepo.updatePerson(
+      draggedPerson.copyWith(createdAt: targetPerson.createdAt),
+    );
+    await _personRepo.updatePerson(
+      targetPerson.copyWith(createdAt: tempTime),
+    );
+    
+    _loadData();
+  }
 
   void _showEditDialog(Person person) {
     final firstNameController = TextEditingController(text: person.firstName);
@@ -4217,10 +4805,16 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
 
 /// Custom painter for subtle background pattern
 class _PatternPainter extends CustomPainter {
+  final bool isDark;
+  
+  _PatternPainter({this.isDark = false});
+  
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = ArtboardColors.champagne.withOpacity(0.3)
+      ..color = (isDark 
+          ? Colors.white.withOpacity(0.03) 
+          : ArtboardColors.champagne.withOpacity(0.3))
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
 

@@ -114,6 +114,29 @@ class GroupRepository {
     }
   }
 
+  /// Update a message
+  Future<void> updateMessage(Message message) async {
+    try {
+      await _api.put(
+        '/api/messages/${message.id}',
+        body: message.toJson(),
+      );
+    } catch (e) {
+      print('Error updating message: $e');
+      rethrow;
+    }
+  }
+
+  /// Delete a message
+  Future<void> deleteMessage(String messageId) async {
+    try {
+      await _api.delete('/api/messages/$messageId');
+    } catch (e) {
+      print('Error deleting message: $e');
+      rethrow;
+    }
+  }
+
   // ===== EVENTS =====
 
   /// Watch all events (polling-based)

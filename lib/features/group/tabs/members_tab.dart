@@ -73,7 +73,7 @@ class MembersTab extends ConsumerWidget {
         // Get direct children
         final children = members.where(
           (p) => p.relationships.parentIds.contains(linkedPerson.id)
-        ).toList()..sort((a, b) => a.fullName.compareTo(b.fullName));
+        ).toList()..sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
         return RefreshIndicator(
           onRefresh: () async {

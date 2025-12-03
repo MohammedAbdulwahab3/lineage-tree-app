@@ -563,7 +563,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
       if (a.birthDate == null && b.birthDate == null) return 0;
       if (a.birthDate == null) return 1;
       if (b.birthDate == null) return -1;
-      return a.birthDate!.compareTo(b.birthDate!);
+      return a.createdAt.compareTo(b.createdAt);
     });
         
     for (final child in children) {
@@ -747,7 +747,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
         if (a.birthDate == null && b.birthDate == null) return 0;
         if (a.birthDate == null) return 1;
         if (b.birthDate == null) return -1;
-        return a.birthDate!.compareTo(b.birthDate!);
+        return a.createdAt.compareTo(b.createdAt);
       });
 
       final radius = baseRadius + (generation * radiusStep);
@@ -802,7 +802,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
       if (a.birthDate == null && b.birthDate == null) return 0;
       if (a.birthDate == null) return 1;
       if (b.birthDate == null) return -1;
-      return a.birthDate!.compareTo(b.birthDate!);
+      return a.createdAt.compareTo(b.createdAt);
     });
 
     // Layout settings
@@ -840,7 +840,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
         if (a.birthDate == null && b.birthDate == null) return 0;
         if (a.birthDate == null) return 1;
         if (b.birthDate == null) return -1;
-        return a.birthDate!.compareTo(b.birthDate!);
+        return a.createdAt.compareTo(b.createdAt);
       });
 
       // Place ALL children of this parent first (in order)
@@ -868,7 +868,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
           if (a.birthDate == null && b.birthDate == null) return 0;
           if (a.birthDate == null) return 1;
           if (b.birthDate == null) return -1;
-          return a.birthDate!.compareTo(b.birthDate!);
+          return a.createdAt.compareTo(b.createdAt);
         });
 
         for (final grandchild in grandchildren) {
@@ -978,7 +978,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
         if (a.birthDate == null && b.birthDate == null) return 0;
         if (a.birthDate == null) return 1;
         if (b.birthDate == null) return -1;
-        return a.birthDate!.compareTo(b.birthDate!);
+        return a.createdAt.compareTo(b.createdAt);
       });
 
       for (final child in children) {
@@ -1180,7 +1180,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
     
     final children = widget.persons.where((p) => 
       p.relationships.parentIds.contains(currentPerson.id)).toList()
-      ..sort((a, b) => (a.birthDate ?? DateTime(9999)).compareTo(b.birthDate ?? DateTime(9999)));
+      ..sort((a, b) => (a.createdAt).compareTo(b.createdAt));
     
     final isRoot = _focusStack.isEmpty;
     final gen = _getPersonGeneration(currentPerson);

@@ -36,10 +36,10 @@ class Person {
     required this.updatedAt,
   });
 
-  // Display as "FirstName ibn FatherName" (ibn = son of)
+  // Display as "FirstName LastName"
   String get fullName {
     if (lastName.isEmpty) return firstName;
-    return '$firstName ibn $lastName';
+    return '$firstName $lastName';
   }
   
   // Short name for compact displays

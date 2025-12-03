@@ -18,6 +18,7 @@ import 'package:family_tree/features/group/tabs/events_tab.dart';
 import 'package:family_tree/features/group/tabs/members_tab.dart';
 import 'package:family_tree/providers/admin_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:family_tree/features/maps/location_picker_dialog.dart';
 
 /// Main family group page with tabs for feed, chat, and events
 class GroupPage extends ConsumerStatefulWidget {
@@ -1198,6 +1199,7 @@ class _GroupPageState extends ConsumerState<GroupPage> with SingleTickerProvider
     final TextEditingController titleController = TextEditingController();
     final TextEditingController descriptionController = TextEditingController();
     final TextEditingController locationController = TextEditingController();
+    final TextEditingController mapLinkController = TextEditingController();
     DateTime selectedDateTime = DateTime.now().add(const Duration(days: 1));
 
     showDialog(
@@ -1302,6 +1304,53 @@ class _GroupPageState extends ConsumerState<GroupPage> with SingleTickerProvider
                     ),
                     const SizedBox(height: AppTheme.spaceMd),
 
+                    // Map Link
+                    TextField(
+                      controller: mapLinkController,
+                      decoration: InputDecoration(
+                        labelText: 'Google Maps Link (Optional)',
+                        labelStyle: GoogleFonts.cormorantGaramond(
+                          color: isDark ? AppTheme.textSecondary : ElegantColors.warmGray,
+                        ),
+                        hintText: 'https://maps.google.com/...',
+                        hintStyle: GoogleFonts.cormorantGaramond(
+                          color: isDark ? AppTheme.textMuted : ElegantColors.warmGray,
+                        ),
+                        filled: true,
+                        fillColor: isDark ? AppTheme.backgroundDark : ElegantColors.cream,
+                        prefixIcon: Icon(
+                          Icons.map, 
+                          color: isDark ? AppTheme.accentCyan : ElegantColors.terracotta,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            Icons.location_on,
+                            color: isDark ? AppTheme.accentCyan : ElegantColors.terracotta,
+                          ),
+                          tooltip: 'Pick on Map',
+                          onPressed: () async {
+                            final link = await showDialog<String>(
+                              context: context,
+                              builder: (context) => const LocationPickerDialog(),
+                            );
+                            if (link != null) {
+                              mapLinkController.text = link;
+                            }
+                          },
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      style: GoogleFonts.cormorantGaramond(
+                        fontSize: 16,
+                        color: isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
+                      ),
+                      keyboardType: TextInputType.url,
+                    ),
+                    const SizedBox(height: AppTheme.spaceMd),
+
                     // Date/Time Picker
                     Material(
                       color: Colors.transparent,
@@ -1392,9 +1441,8 @@ class _GroupPageState extends ConsumerState<GroupPage> with SingleTickerProvider
                       description: descriptionController.text.trim().isNotEmpty
                           ? descriptionController.text.trim()
                           : null,
-                      location: locationController.text.trim().isNotEmpty
-                          ? locationController.text.trim()
-                          : null,
+                      location: locationController.text.trim(),
+                      mapLink: mapLinkController.text.isEmpty ? null : mapLinkController.text.trim(),
                       dateTime: selectedDateTime,
                       createdBy: user.uid,
                       attendees: [user.uid], // Creator auto-joins

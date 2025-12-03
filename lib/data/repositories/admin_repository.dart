@@ -83,6 +83,19 @@ class AdminRepository {
     }
   }
 
+  /// Update a post (admin only)
+  Future<void> updatePost(Post post) async {
+    try {
+      await _api.put(
+        '/api/admin/posts/${post.id}',
+        body: post.toJson(),
+      );
+    } catch (e) {
+      print('Error updating post: $e');
+      rethrow;
+    }
+  }
+
   // ===== EVENT MANAGEMENT =====
 
   /// Create a new event (admin only)
@@ -99,6 +112,19 @@ class AdminRepository {
       throw Exception('Failed to create event: ${response.body}');
     } catch (e) {
       print('Error creating event: $e');
+      rethrow;
+    }
+  }
+
+  /// Update an event (admin only)
+  Future<void> updateEvent(Appointment event) async {
+    try {
+      await _api.put(
+        '/api/admin/events/${event.id}',
+        body: event.toJson(),
+      );
+    } catch (e) {
+      print('Error updating event: $e');
       rethrow;
     }
   }

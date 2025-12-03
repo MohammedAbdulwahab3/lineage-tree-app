@@ -254,6 +254,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                   ],
                 ),
               ),
+              /*
               const PopupMenuItem(
                 value: LayoutMode.timeline,
                 child: Row(
@@ -264,6 +265,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                   ],
                 ),
               ),
+              */
               const PopupMenuItem(
                 value: LayoutMode.list,
                 child: Row(

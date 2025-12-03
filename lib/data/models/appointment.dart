@@ -6,6 +6,7 @@ class Appointment {
   final String? description;
   final DateTime dateTime;
   final String? location;
+  final String? mapLink; // Google Maps URL for routing
   final String createdBy;
   final List<String> attendees;
 
@@ -16,6 +17,7 @@ class Appointment {
     this.description,
     required this.dateTime,
     this.location,
+    this.mapLink,
     required this.createdBy,
     this.attendees = const [],
   });
@@ -29,6 +31,7 @@ class Appointment {
       description: json['description'],
       dateTime: json['dateTime'] != null ? DateTime.parse(json['dateTime']) : DateTime.now(),
       location: json['location'],
+      mapLink: json['mapLink'],
       createdBy: json['createdBy'] ?? '',
       attendees: List<String>.from(json['attendees'] ?? []),
     );
@@ -43,6 +46,7 @@ class Appointment {
       'description': description,
       'dateTime': dateTime.toUtc().toIso8601String(),
       'location': location,
+      'mapLink': mapLink,
       'createdBy': createdBy,
       'attendees': attendees,
     };
@@ -55,6 +59,7 @@ class Appointment {
     String? description,
     DateTime? dateTime,
     String? location,
+    String? mapLink,
     String? createdBy,
     List<String>? attendees,
   }) {
@@ -65,6 +70,7 @@ class Appointment {
       description: description ?? this.description,
       dateTime: dateTime ?? this.dateTime,
       location: location ?? this.location,
+      mapLink: mapLink ?? this.mapLink,
       createdBy: createdBy ?? this.createdBy,
       attendees: attendees ?? this.attendees,
     );

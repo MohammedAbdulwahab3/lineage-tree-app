@@ -8,6 +8,7 @@ class Post {
   final String content;
   final List<String> photos;
   final List<String> videos;
+  final List<String> files; // Document attachments (PDFs, etc.)
   final DateTime createdAt;
   final Map<String, List<String>> reactions; // emoji -> [userId1, userId2...]
 
@@ -20,6 +21,7 @@ class Post {
     required this.content,
     this.photos = const [],
     this.videos = const [],
+    this.files = const [],
     required this.createdAt,
     this.reactions = const {},
   });
@@ -44,6 +46,7 @@ class Post {
       content: json['content'] ?? '',
       photos: List<String>.from(json['photos'] ?? []),
       videos: List<String>.from(json['videos'] ?? []),
+      files: List<String>.from(json['files'] ?? []),
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
       reactions: reactionsMap,
     );
@@ -60,6 +63,7 @@ class Post {
       'content': content,
       'photos': photos,
       'videos': videos,
+      'files': files,
       'createdAt': createdAt.toUtc().toIso8601String(),
       'reactions': reactions,
     };
@@ -74,6 +78,7 @@ class Post {
     String? content,
     List<String>? photos,
     List<String>? videos,
+    List<String>? files,
     DateTime? createdAt,
     Map<String, List<String>>? reactions,
   }) {
@@ -86,6 +91,7 @@ class Post {
       content: content ?? this.content,
       photos: photos ?? this.photos,
       videos: videos ?? this.videos,
+      files: files ?? this.files,
       createdAt: createdAt ?? this.createdAt,
       reactions: reactions ?? this.reactions,
     );

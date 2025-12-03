@@ -83,6 +83,42 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
 
     return Scaffold(
       backgroundColor: isDark ? AppTheme.backgroundDark : ElegantColors.cream,
+      appBar: AppBar(
+        backgroundColor: isDark ? AppTheme.surfaceDark : ElegantColors.warmWhite,
+        elevation: 0,
+        title: Row(
+          children: [
+            Icon(Icons.account_tree_rounded, color: ElegantColors.terracotta),
+            const SizedBox(width: 8),
+            Text(
+              'Family Tree',
+              style: GoogleFonts.playfairDisplay(
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : ElegantColors.charcoal,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () => context.go('/'),
+            icon: const Icon(Icons.home_rounded, size: 18),
+            label: Text('Home', style: GoogleFonts.cormorantGaramond(fontWeight: FontWeight.w600)),
+            style: TextButton.styleFrom(
+              foregroundColor:  isDark ? Colors.white70 : ElegantColors.warmGray,
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => context.go('/demo'),
+            icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
+            label: Text('Demo', style: GoogleFonts.cormorantGaramond(fontWeight: FontWeight.w600)),
+            style: TextButton.styleFrom(
+              foregroundColor: isDark ? Colors.white70 : ElegantColors.warmGray,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: Container(
         decoration: BoxDecoration(
           color: isDark ? null : ElegantColors.cream,
@@ -364,12 +400,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
             p.relationships.parentIds.contains(_linkedPerson!.id)).length
         : 0;
     
+    final generations = _calculateGenerations();
+    
     return Column(
       children: [
         _buildWebStatItem(Icons.people_alt_rounded, '${_familyMembers.length}', 'Family Members', 
             isDark ? AppTheme.accentTeal : ElegantColors.terracotta, isDark),
         const SizedBox(height: 12),
-        _buildWebStatItem(Icons.account_tree_rounded, '5', 'Generations', 
+        _buildWebStatItem(Icons.account_tree_rounded, '$generations', 'Generations', 
             isDark ? AppTheme.primaryLight : ElegantColors.sage, isDark),
         const SizedBox(height: 12),
         _buildWebStatItem(Icons.child_care_rounded, '$descendants', 'Your Children', 
@@ -777,6 +815,46 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
         ],
       ),
     );
+  }
+  
+  /// Calculate the number of generations in the family tree
+  int _calculateGenerations() {
+    if (_familyMembers.isEmpty) return 0;
+    
+    // Find root persons (those with no parents)
+    final roots = _familyMembers.where((p) => p.relationships.parentIds.isEmpty).toList();
+    if (roots.isEmpty) return 1;
+    
+    int maxDepth = 0;
+    
+    // For each root, calculate depth using BFS
+    for (final root in roots) {
+      final depth = _getPersonDepth(root.id, {});
+      if (depth > maxDepth) maxDepth = depth;
+    }
+    
+    return maxDepth;
+  }
+  
+  /// Get the depth of a person in the tree (how many generations below them)
+  int _getPersonDepth(String personId, Set<String> visited) {
+    if (visited.contains(personId)) return 0;
+    visited.add(personId);
+    
+    final person = _familyMembers.firstWhere(
+      (p) => p.id == personId,
+      orElse: () => _familyMembers.first,
+    );
+    
+    if (person.relationships.childrenIds.isEmpty) return 1;
+    
+    int maxChildDepth = 0;
+    for (final childId in person.relationships.childrenIds) {
+      final childDepth = _getPersonDepth(childId, visited);
+      if (childDepth > maxChildDepth) maxChildDepth = childDepth;
+    }
+    
+    return maxChildDepth + 1;
   }
   
   void _showEditProfileDialog() {
